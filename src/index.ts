@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import express from 'express';
-import { DataSource } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { User } from './entity/User';
 import { Post } from './entity/Post';
 
@@ -33,12 +33,106 @@ const initializeDatabase = async () => {
 
 initializeDatabase();
 
-app.post('/users', async (req, res) => {
-// Crie o endpoint de users
+app.post("/users", async (req, res) => {
+  const {id, firstName, lastName, email} = req.body;
+
+  if (!firstName || !lastName || !email) {
+    return res.status(400).json({
+      status: "error",
+      message: "Missing required fields: firstName, lastName, email",
+    });
+  }
+
+  const userRepository: Repository<User> = AppDataSource.getRepository(User);
+
+  const user: User = new User();
+  user.id = id;
+  user.firstName = firstName;
+  user.lastName = lastName;
+  user.email = email;
+
+  try {
+    const savedUser = await userRepository.save(user);
+
+    return res.status(201).json({
+      status: "success",
+      message: "User created successfully",
+      data: {
+        user: {
+          id: savedUser.id,
+          firstName: savedUser.firstName,
+          lastName: savedUser.lastName,
+          email: savedUser.email,
+        },
+      },
+    });
+  } catch (e: any) {
+    console.error("Error saving user:", e);
+
+    return res.status(500).json({
+      status: "error",
+      message: "Internal Server Error",
+      details: e.message || " An unexpected error ocurred",
+    });
+  }
+
 });
 
-app.post('/posts', async (req, res) => {
-// Crie o endpoint de posts
+app.post("/posts", async (req, res) => {
+  const {id, title, description, userId} = req.body;
+
+  if (!title || !description || !userId) {
+    return res.status(400).json({
+      status: "error",
+      message: "Missing required fields: title, description, userId",
+    });
+  }
+
+  const postRepository: Repository<Post> = AppDataSource.getRepository(Post);
+  const userRepository: Repository<User> = AppDataSource.getRepository(User);
+
+  try {
+    const user: User | null = await userRepository.findOneBy({id: userId});
+
+    if (!user) {
+      return res.status(404).json({
+        status: "error",
+        message: "Internal Server Error",
+        details: "User not found",
+      });
+    }
+
+    const post: Post = new Post();
+    post.id = id;
+    post.title = title;
+    post.description = description;
+    post.user = user;
+
+    const savedPost = await postRepository.save(post);
+
+    res.status(201).json({
+      status: "success",
+      message: "Post created successfully",
+      data: {
+        post: {
+          id: savedPost.id,
+          title: savedPost.title,
+          description: savedPost.description,
+          user: savedPost.user.id,
+        },
+      },
+    });
+  } catch (e: any) {
+    console.error("Error saving post:", e);
+
+    res.status(500).json({
+      status: "error",
+      message: "Internal Server Error",
+      details: e.message || " An unexpected error ocurred",
+    });
+  }
+
+
 });
 
 const PORT = process.env.PORT || 3000;
